@@ -16,7 +16,6 @@ ifeq ($(TARGET_BOARD_PLATFORM),tegra)
 # It is also invoked automatically as part of the default target.
 #
 ######################################################################
-
 #set -x
 
 ROOTDIR := $(shell pwd -P)/
@@ -57,7 +56,10 @@ ifeq ($(DEPMOD),)
 	DEPMOD := $(shell which depmod 2> /dev/null || echo $(HOST_OUT_EXECUTABLES)/depmod$(HOST_EXECUTABLE_SUFFIX))
 endif
 
-KERNEL_SRC_DIR         := $(ROOTDIR)kernel_atrix
+ifeq ($(KERNEL_SRC_DIR),)
+KERNEL_SRC_DIR := $(ROOTDIR)kernel
+endif
+
 KERNEL_BUILD_DIR       := $(ROOTDIR)$(PRODUCT_OUT)/obj/PARTITIONS/kernel_intermediates/build
 TARGET_PREBUILT_KERNEL := $(KERNEL_BUILD_DIR)/arch/arm/boot/zImage
 KERNEL_CROSS_COMPILE   := $(ROOTDIR)prebuilt/$(HOST_PREBUILT_TAG)/toolchain/arm-eabi-4.4.0/bin/arm-eabi-
@@ -80,9 +82,7 @@ TARGET_DEFCONFIG            := $(DEFCONFIGSRC)/$(_TARGET_DEFCONFIG)
 
 MOTO_MOD_INSTALL := $(TARGET_OUT)/lib/modules
 
-# to check
 WLAN_DHD_PATH := $(ROOTDIR)vendor/bcm/wlan/osrc/open-src/src/dhd/linux
-#WLAN_DRV_PATH := $(ROOTDIR)system/wlan/ti/wilink_6_1/platforms/os/linux
 
 GIT_HOOKS_DIR := $(KERNEL_SRC_DIR)/.git/hooks
 inst_hook: $(GIT_HOOKS_DIR)/pre-commit $(GIT_HOOKS_DIR)/checkpatch.pl
@@ -95,7 +95,10 @@ $(GIT_HOOKS_DIR)/checkpatch.pl: $(KERNEL_SRC_DIR)/scripts/checkpatch.pl
 	@-cp -f $< $@
 	@-chmod ugo+x $@
 
-BLD_CONF=tegra_olympus_android
+# Our custom defconfig
+ifeq ($(BLD_CONF),)
+BLD_CONF=faux123_cm7
+endif
 
 ifneq ($(BLD_CONF),)
 PRODUCT_SPECIFIC_DEFCONFIGS := $(DEFCONFIGSRC)/$(BLD_CONF)_defconfig
@@ -280,9 +283,9 @@ ext_kernel_modules_clean: wlan_dhd_clean
 API_MAKE = make PREFIX=$(KERNEL_BUILD_DIR) \
 		CROSS=$(KERNEL_CROSS_COMPILE) \
 		CROSS_COMPILE=$(KERNEL_CROSS_COMPILE) \
+		KERNEL_DIR=$(KERNEL_BUILD_DIR) \
 		PROJROOT=$(PROJROOT) \
 		LINUXSRCDIR=$(KERNEL_SRC_DIR) \
-		KERNEL_DIR=$(KERNEL_BUILD_DIR) \
 		LINUXBUILDDIR=$(KERNEL_BUILD_DIR) \
 
 wlan_dhd: $(CONFIG_OUT)

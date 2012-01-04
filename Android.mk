@@ -69,8 +69,7 @@ KERNEL_ERR_LOG     := $(KERNEL_BUILD_DIR)/.kbld_err_log.txt
 KMOD_ERR_LOG       := $(KERNEL_BUILD_DIR)/.kmod_err_log.txt
 KERNEL_FFLAG       := $(KERNEL_BUILD_DIR)/.filter_ok.txt
 
-# ignore warnings
-TEST_MUDFLAP := true
+TEST_MUDFLAP := 0
 
 DEFCONFIGSRC                := ${KERNEL_SRC_DIR}/arch/arm/configs
 LJAPDEFCONFIGSRC            := ${DEFCONFIGSRC}/ext_config

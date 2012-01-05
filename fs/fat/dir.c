@@ -19,6 +19,7 @@
 #include <linux/buffer_head.h>
 #include <linux/compat.h>
 #include <asm/uaccess.h>
+#include <linux/kernel.h>
 #include "fat.h"
 
 /*
@@ -140,28 +141,22 @@ static int uni16_to_x8(unsigned char *ascii, const wchar_t *uni, int len,
 {
 	const wchar_t *ip;
 	wchar_t ec;
-	unsigned char *op, nc;
+	unsigned char *op;
 	int charlen;
-	int k;
 
 	ip = uni;
 	op = ascii;
 
 	while (*ip && ((len - NLS_MAX_CHARSET_SIZE) > 0)) {
 		ec = *ip++;
-		if ( (charlen = nls->uni2char(ec, op, NLS_MAX_CHARSET_SIZE)) > 0) {
+		if ((charlen = nls->uni2char(ec, op, NLS_MAX_CHARSET_SIZE)) > 0) {
 			op += charlen;
 			len -= charlen;
 		} else {
 			if (uni_xlate == 1) {
-				*op = ':';
-				for (k = 4; k > 0; k--) {
-					nc = ec & 0xF;
-					op[k] = nc > 9	? nc + ('a' - 10)
-							: nc + '0';
-					ec >>= 4;
-				}
-				op += 5;
+				*op++ = ':';
+				op = pack_hex_byte(op, ec >> 8);
+				op = pack_hex_byte(op, ec);
 				len -= 5;
 			} else {
 				*op++ = '?';
@@ -1242,7 +1237,7 @@ int fat_add_entries(struct inode *dir, void *slots, int nr_slots,
 	struct super_block *sb = dir->i_sb;
 	struct msdos_sb_info *sbi = MSDOS_SB(sb);
 	struct buffer_head *bh, *prev, *bhs[3]; /* 32*slots (672bytes) */
-	struct msdos_dir_entry *de;
+	struct msdos_dir_entry *de = NULL;
 	int err, free_slots, i, nr_bhs;
 	loff_t pos, i_pos;
 

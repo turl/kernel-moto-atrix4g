@@ -4,6 +4,8 @@
 # What library to link
 ldflags()
 {
+echo ''
+exit
 	for ext in so a dylib ; do
 		for lib in ncursesw ncurses curses ; do
 			$cc -print-file-name=lib${lib}.${ext} | grep -q /
@@ -19,6 +21,8 @@ ldflags()
 # Where is ncurses.h?
 ccflags()
 {
+echo ''
+exit
 	if [ -f /usr/include/ncurses/ncurses.h ]; then
 		echo '-I/usr/include/ncurses -DCURSES_LOC="<ncurses.h>"'
 	elif [ -f /usr/include/ncurses/curses.h ]; then

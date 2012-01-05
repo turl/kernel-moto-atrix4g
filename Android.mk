@@ -7,7 +7,7 @@ ifeq ($(TARGET_BOARD_PLATFORM),tegra)
 # How to use:
 #
 # This makefile is invoked from kernel/Android.mk. You may build
-# the kernel and modules by using the "kernel" target:
+# the kernel and modules by using the "kernel" target in repo root :
 #
 # source build/envsetup.sh
 # choosecombo 1 1 olympus eng
@@ -62,7 +62,8 @@ endif
 
 KERNEL_BUILD_DIR       := $(ROOTDIR)$(PRODUCT_OUT)/obj/PARTITIONS/kernel_intermediates/build
 TARGET_PREBUILT_KERNEL := $(KERNEL_BUILD_DIR)/arch/arm/boot/zImage
-KERNEL_CROSS_COMPILE   := $(ROOTDIR)prebuilt/$(HOST_PREBUILT_TAG)/toolchain/arm-eabi-4.4.0/bin/arm-eabi-
+#KERNEL_CROSS_COMPILE   := $(ROOTDIR)prebuilt/$(HOST_PREBUILT_TAG)/toolchain/arm-eabi-4.4.0/bin/arm-eabi-
+KERNEL_CROSS_COMPILE   := $(ROOTDIR)prebuilt/$(HOST_PREBUILT_TAG)/toolchain/arm-eabi-4.4.3/bin/arm-eabi-
 
 KERNEL_WARN_FILTER := $(KERNEL_SRC_DIR)/scripts/gcc_warn_filter.cfg
 KERNEL_ERR_LOG     := $(KERNEL_BUILD_DIR)/.kbld_err_log.txt
@@ -258,6 +259,7 @@ kernel_clean:
 		O=$(KERNEL_BUILD_DIR) mrproper
 	rm -f $(TARGET_DEFCONFIG)
 	@rm -f $(KERNEL_BUILD_DIR)/.*.txt
+	@rmdir $(KERNEL_SRC_DIR)/include/config
 
 #
 #----------------------------------------------------------------------------

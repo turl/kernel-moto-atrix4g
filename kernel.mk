@@ -1,6 +1,8 @@
-#####################################################################
-# helpers for kernel, not required by "make kernel" (nice to remember)
-#####################################################################
+########################################################################################
+#
+# not required by "make kernel", kept to remember make rules
+#
+########################################################################################
 
 all:
 	$(MAKE) -f kernel/Android.mk kernel kernel_modules_install ext_kernel_modules
@@ -22,3 +24,5 @@ dir:
 
 clean:
 	$(MAKE) -f kernel/Android.mk kernel_clean ext_kernel_modules_clean
+	@[ -d kernel/include/config ] && rmdir kernel/include/config
+

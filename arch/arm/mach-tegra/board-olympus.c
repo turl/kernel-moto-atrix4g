@@ -38,13 +38,14 @@
 #include <mach/sdhci.h>
 #include <mach/gpio.h>
 
-#include <linux/usb/android_composite.h>
+#include <linux/usb/composite.h>
 
 #include "board.h"
 #include "board-olympus.h"
 #include "clock.h"
 #include "gpio-names.h"
 #include "devices.h"
+#include "pm.h"
 
 /* NVidia bootloader tags */
 #define ATAG_NVIDIA		0x41000801
@@ -54,18 +55,93 @@
 #define ATAG_NVIDIA_FRAMEBUFFER		0x3
 #define ATAG_NVIDIA_CHIPSHMOO		0x4
 #define ATAG_NVIDIA_CHIPSHMOOPHYS	0x5
+#define ATAG_NVIDIA_CARVEOUT		0x6
+#define ATAG_NVIDIA_WARMBOOT		0x7
 #define ATAG_NVIDIA_PRESERVED_MEM_0	0x10000
 #define ATAG_NVIDIA_PRESERVED_MEM_N	2
 #define ATAG_NVIDIA_FORCE_32		0x7fffffff
 
+#define MAX_MEMHDL			8
+
+#if 0
 struct tag_tegra {
 	__u32 bootarg_key;
 	__u32 bootarg_len;
 	char bootarg[1];
 };
+#endif
+struct tag_tegra {
+	__u32 bootarg_len;
+	__u32 bootarg_key;
+	__u32 bootarg_nvkey;
+	__u32 bootarg[];
+};
+
+struct memhdl {
+	__u32 id;
+	__u32 start;
+	__u32 size;
+};
+
+static int num_memhdl = 0;
+
+static struct memhdl nv_memhdl[MAX_MEMHDL];
+
+static const char atag_ids[][16] = {
+        "RM ",
+        "DISPLAY ",
+        "FRAMEBUFFER ",
+        "CHIPSHMOO ",
+        "CHIPSHMOO_PHYS ",
+        "CARVEOUT ",
+        "WARMBOOT ",
+};
 
 static int __init parse_tag_nvidia(const struct tag *tag)
 {
+	int i;
+	struct tag_tegra *nvtag = (struct tag_tegra *)tag;
+	__u32 id;
+
+	switch (nvtag->bootarg_nvkey) {
+		case ATAG_NVIDIA_FRAMEBUFFER:
+			id = nvtag->bootarg[1];
+			for (i=0; i<num_memhdl; i++)
+				if (nv_memhdl[i].id == id) {
+					tegra_bootloader_fb_start = nv_memhdl[i].start;
+					tegra_bootloader_fb_size = nv_memhdl[i].size;
+				}
+	                break;
+
+		case ATAG_NVIDIA_WARMBOOT:
+			id = nvtag->bootarg[1];
+			for (i=0; i<num_memhdl; i++) {
+				if (nv_memhdl[i].id == id) {
+				tegra_lp0_vec_start = nv_memhdl[i].start;
+				tegra_lp0_vec_size = nv_memhdl[i].size;
+				}
+			}
+			break;
+	}
+
+	if (nvtag->bootarg_nvkey & 0x10000) {
+		char pmh[] = " PreMemHdl ";
+		id = nvtag->bootarg_nvkey;
+		if (num_memhdl < MAX_MEMHDL) {
+			nv_memhdl[num_memhdl].id = id;
+			nv_memhdl[num_memhdl].start = nvtag->bootarg[1];
+			nv_memhdl[num_memhdl].size = nvtag->bootarg[2];
+			num_memhdl++;
+		}
+		pmh[11] = '0' + id;
+		print_hex_dump(KERN_INFO, pmh, DUMP_PREFIX_NONE,
+			32, 4, &nvtag->bootarg[0], 4*(tag->hdr.size-2), false);
+	}
+	else if (nvtag->bootarg_nvkey <= ARRAY_SIZE(atag_ids))
+		print_hex_dump(KERN_INFO, atag_ids[nvtag->bootarg_nvkey-1], DUMP_PREFIX_NONE,
+			32, 4, &nvtag->bootarg[0], 4*(tag->hdr.size-2), false);
+	else
+		pr_warning("unknown ATAG key %d\n", nvtag->bootarg_nvkey);
 
 	return 0;
 }
@@ -146,44 +222,6 @@ static struct platform_device tegra_otg = {
 	.num_resources = ARRAY_SIZE(tegra_otg_resources),
 };
 
-static char *usb_functions[] = { "usb_mass_storage" };
-static char *usb_functions_adb[] = { "usb_mass_storage", "adb" };
-
-static struct android_usb_product usb_products[] = {
-	{
-		.product_id     = 0xDEAD,
-		.num_functions  = ARRAY_SIZE(usb_functions),
-		.functions      = usb_functions,
-	},
-	{
-		.product_id     = 0xBEEF,
-		.num_functions  = ARRAY_SIZE(usb_functions_adb),
-		.functions      = usb_functions_adb,
-	},
-};
-
-/* standard android USB platform data */
-static struct android_usb_platform_data andusb_plat = {
-	.vendor_id                      = 0x18d1,
-	.product_id                     = 0x0002,
-	.manufacturer_name      = "Google",
-	.product_name           = "Olympus!",
-	.serial_number          = "0000",
-	.num_products = ARRAY_SIZE(usb_products),
-	.products = usb_products,
-	.num_functions = ARRAY_SIZE(usb_functions_adb),
-	.functions = usb_functions_adb,
-};
-
-
-static struct platform_device androidusb_device = {
-	.name   = "android_usb",
-	.id     = -1,
-	.dev    = {
-		.platform_data  = &andusb_plat,
-	},
-};
-
 /* PDA power */
 static struct pda_power_pdata pda_power_pdata = {
 };
@@ -199,19 +237,22 @@ static struct platform_device pda_power_device = {
 static struct platform_device *olympus_devices[] __initdata = {
 	&debug_uart,
 	&tegra_otg,
-	&androidusb_device,
 	&pda_power_device,
 	&hsuart,
 };
 
 static struct tegra_sdhci_platform_data olympus_sdhci_platform_data3 = {
-	.clk_id = NULL,
-	.force_hs = 0,
+/*	.clk_id = NULL,
+	.force_hs = 0,*/
+        .cd_gpio = -1,
+        .wp_gpio = -1,
+        .power_gpio = -1,
+        .is_8bit = 1,
 };
 
 static struct tegra_sdhci_platform_data olympus_sdhci_platform_data4 = {
-	.clk_id = NULL,
-	.force_hs = 0,
+/*	.clk_id = NULL,
+	.force_hs = 0,*/
 	.cd_gpio = TEGRA_GPIO_PH2,
 	.wp_gpio = TEGRA_GPIO_PH3,
 	.power_gpio = TEGRA_GPIO_PI6,
@@ -250,8 +291,6 @@ static void __init tegra_olympus_init(void)
 {
 	struct clk *clk;
 
-	tegra_common_init();
-
 	/* Olympus has a USB switch that disconnects the usb port from the AP20
 	   unless a factory cable is used, the factory jumper is set, or the
 	   usb_data_en gpio is set.
@@ -274,11 +313,10 @@ static void __init tegra_olympus_init(void)
 
 MACHINE_START(OLYMPUS, "olympus")
 	.boot_params  = 0x00000100,
-	.phys_io        = IO_APB_PHYS,
-	.io_pg_offst    = ((IO_APB_VIRT) >> 18) & 0xfffc,
 	.fixup		= tegra_olympus_fixup,
-	.init_irq       = tegra_init_irq,
-	.init_machine   = tegra_olympus_init,
 	.map_io         = tegra_map_common_io,
+	.init_early	= tegra_init_early,
+	.init_irq	= tegra_init_irq,
 	.timer          = &tegra_timer,
+	.init_machine	= tegra_olympus_init,
 MACHINE_END
